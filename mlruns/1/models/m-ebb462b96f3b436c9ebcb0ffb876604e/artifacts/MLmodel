@@ -1,0 +1,23 @@
+artifact_path: file:///C:/Users/Amir/Documents/python/ml-obervability/mlruns/1/models/m-ebb462b96f3b436c9ebcb0ffb876604e/artifacts
+flavors:
+  python_function:
+    env:
+      conda: conda.yaml
+      virtualenv: python_env.yaml
+    loader_module: mlflow.sklearn
+    model_path: model.pkl
+    predict_fn: predict
+    python_version: 3.10.0
+  sklearn:
+    code: null
+    pickled_model: model.pkl
+    serialization_format: pickle
+    sklearn_version: 1.7.2
+    skops_trusted_types: null
+mlflow_version: 3.16.1
+model_id: m-ebb462b96f3b436c9ebcb0ffb876604e
+model_size_bytes: 4908149
+model_uuid: m-ebb462b96f3b436c9ebcb0ffb876604e
+prompts: null
+run_id: 0ece9f2a6d4c4763ba26d5c276cd262e
+utc_time_created: '2026-09-23 08:42:43.920508'
