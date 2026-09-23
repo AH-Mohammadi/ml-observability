@@ -39,10 +39,12 @@ def synthetic_csv(tmp_path):
 
 @pytest.fixture(autouse=True)
 def isolated_mlflow_tracking(tmp_path, monkeypatch):
-    """Point MLflow at a temp local directory so tests don't pollute the
-    real `mlruns/` folder or depend on a running tracking server."""
-    tracking_dir = tmp_path / "mlruns"
-    mlflow.set_tracking_uri(f"file://{tracking_dir}")
+    """Point MLflow at a temp local SQLite db so tests don't pollute the
+    real tracking store or depend on a running tracking server. The plain
+    filesystem store (file://...) is in maintenance mode in recent MLflow
+    versions and raises, so tests use SQLite like the app itself does."""
+    db_path = tmp_path / "mlflow.db"
+    mlflow.set_tracking_uri(f"sqlite:///{db_path}")
     yield
 
 

@@ -7,3 +7,5 @@ data/processed/*
 !data/processed/.gitkeep
 .pytest_cache/
 *.egg-info/
+mlflow.db
+mlruns/

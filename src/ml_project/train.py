@@ -3,6 +3,7 @@
 Run with:
     python -m ml_project.train
     python -m ml_project.train --model-type random_forest
+    python -m ml_project.train --model-type gradient_boosting
 
 Loads data, splits it, trains a model in a Pipeline (preprocessing +
 model), evaluates on the validation set, and logs the run — params,
@@ -19,34 +20,32 @@ from typing import Literal
 import joblib
 import mlflow
 import mlflow.sklearn
-from sklearn.ensemble import RandomForestClassifier
+from sklearn.ensemble import GradientBoostingClassifier, RandomForestClassifier
 from sklearn.linear_model import LogisticRegression
-from sklearn.metrics import (
-    accuracy_score,
-    f1_score,
-    precision_score,
-    recall_score,
-    roc_auc_score,
-)
 from sklearn.pipeline import Pipeline
 
 from ml_project.data import TARGET_COLUMN, load_data
+from ml_project.evaluate import evaluate
 from ml_project.preprocessing import (
     CATEGORICAL_FEATURES,
     NUMERIC_FEATURES,
     build_preprocessor,
 )
 from ml_project.split import RANDOM_SEED, split_data
+from ml_project.tracking import configure_default_tracking
 
 DEFAULT_MODEL_PATH = Path(__file__).resolve().parents[2] / "models" / "baseline.joblib"
 EXPERIMENT_NAME = "telco-churn"
 
-ModelType = Literal["logistic_regression", "random_forest"]
+ModelType = Literal["logistic_regression", "random_forest", "gradient_boosting"]
 
 MODEL_BUILDERS = {
     "logistic_regression": lambda: LogisticRegression(max_iter=1000, random_state=RANDOM_SEED),
     "random_forest": lambda: RandomForestClassifier(
         n_estimators=200, max_depth=8, random_state=RANDOM_SEED
+    ),
+    "gradient_boosting": lambda: GradientBoostingClassifier(
+        n_estimators=150, max_depth=3, random_state=RANDOM_SEED
     ),
 }
 
@@ -63,26 +62,13 @@ def build_pipeline(model_type: ModelType = "logistic_regression") -> Pipeline:
     )
 
 
-def evaluate(pipeline: Pipeline, X_val, y_val) -> dict:
-    """Compute validation metrics for a fitted pipeline."""
-    y_pred = pipeline.predict(X_val)
-    y_proba = pipeline.predict_proba(X_val)[:, 1]
-
-    return {
-        "accuracy": round(accuracy_score(y_val, y_pred), 4),
-        "precision": round(precision_score(y_val, y_pred, pos_label="Yes"), 4),
-        "recall": round(recall_score(y_val, y_pred, pos_label="Yes"), 4),
-        "f1": round(f1_score(y_val, y_pred, pos_label="Yes"), 4),
-        "roc_auc": round(roc_auc_score(y_val, y_proba), 4),
-    }
-
-
 def run_training(
     data_path: Path | str | None = None,
     model_path: Path | str | None = None,
     model_type: ModelType = "logistic_regression",
 ) -> dict:
     """Run the full training flow inside an MLflow run. Returns validation metrics."""
+    configure_default_tracking()
     mlflow.set_experiment(EXPERIMENT_NAME)
 
     with mlflow.start_run():
