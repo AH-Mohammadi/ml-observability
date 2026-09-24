@@ -26,6 +26,7 @@ from sklearn.pipeline import Pipeline
 
 from ml_project.data import TARGET_COLUMN, load_data
 from ml_project.evaluate import evaluate
+from ml_project.logging_config import get_logger
 from ml_project.preprocessing import (
     CATEGORICAL_FEATURES,
     NUMERIC_FEATURES,
@@ -33,6 +34,8 @@ from ml_project.preprocessing import (
 )
 from ml_project.split import RANDOM_SEED, split_data
 from ml_project.tracking import configure_default_tracking
+
+logger = get_logger(__name__)
 
 DEFAULT_MODEL_PATH = Path(__file__).resolve().parents[2] / "models" / "baseline.joblib"
 EXPERIMENT_NAME = "telco-churn"
@@ -72,7 +75,13 @@ def run_training(
     mlflow.set_experiment(EXPERIMENT_NAME)
 
     with mlflow.start_run():
+        run_id = mlflow.active_run().info.run_id
         start = time.perf_counter()
+
+        logger.info(
+            "training_started",
+            extra={"run_id": run_id, "model_type": model_type, "dataset_path": str(data_path)},
+        )
 
         df = load_data(data_path)
         splits = split_data(df)
@@ -115,6 +124,18 @@ def run_training(
             "model_saved_to": str(save_path),
             "mlflow_run_id": mlflow.active_run().info.run_id,
         }
+
+        logger.info(
+            "training_completed",
+            extra={
+                "run_id": run_id,
+                "model_type": model_type,
+                "dataset_version": {"n_train_rows": len(splits.train), "n_val_rows": len(splits.val)},
+                "duration": duration_seconds,
+                "metrics": metrics,
+            },
+        )
+
         print(json.dumps(result, indent=2))
         return metrics
 
