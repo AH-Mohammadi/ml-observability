@@ -12,6 +12,7 @@ from pathlib import Path
 import joblib
 import pandas as pd
 
+from ml_project.data_quality import check_request
 from ml_project.logging_config import get_logger
 from ml_project.metrics import metrics
 from ml_project.preprocessing import CATEGORICAL_FEATURES, NUMERIC_FEATURES
@@ -74,14 +75,19 @@ def predict(features: dict, model_path: Path | str | None = None) -> dict:
     request_id = str(uuid.uuid4())
     start = time.perf_counter()
 
-    missing = [f for f in REQUIRED_FEATURES if f not in features]
-    if missing:
+    quality = check_request(features)
+    if quality.warnings:
+        logger.info(
+            "data_quality_warning",
+            extra={"request_id": request_id, "warnings": quality.warnings},
+        )
+    if not quality.valid:
         logger.info(
             "prediction_failed",
-            extra={"request_id": request_id, "error": "missing_feature", "missing_features": missing},
+            extra={"request_id": request_id, "error": "data_quality_check_failed", "errors": quality.errors},
         )
         metrics.record_request(success=False, latency_ms=round((time.perf_counter() - start) * 1000, 2))
-        raise PredictionError(f"Missing required feature(s): {missing}")
+        raise PredictionError(f"Request failed data quality checks: {quality.errors}")
 
     try:
         pipeline = load_model(model_path)

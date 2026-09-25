@@ -65,7 +65,7 @@ def test_valid_prediction_returns_expected_shape(fitted_model_path):
 
 def test_missing_feature_raises_prediction_error(fitted_model_path):
     incomplete = {k: v for k, v in VALID_FEATURES.items() if k != "Contract"}
-    with pytest.raises(PredictionError, match="Missing required feature"):
+    with pytest.raises(PredictionError, match="missing required feature"):
         predict(incomplete, model_path=fitted_model_path)
 
 
