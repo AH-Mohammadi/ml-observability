@@ -77,7 +77,7 @@ def test_unknown_categorical_value_does_not_raise(fitted_model_path):
 
 def test_invalid_numeric_value_raises_prediction_error(fitted_model_path):
     features = {**VALID_FEATURES, "tenure": "not-a-number"}
-    with pytest.raises(PredictionError, match="Prediction failed"):
+    with pytest.raises(PredictionError, match="data quality checks"):
         predict(features, model_path=fitted_model_path)
 
 
