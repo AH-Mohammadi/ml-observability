@@ -139,6 +139,10 @@ def print_report(report: dict) -> None:
 def main():
     import argparse
 
+    from ml_project.logging_config import enable_file_logging
+
+    enable_file_logging()
+
     parser = argparse.ArgumentParser(description="Simulate a drift incident and report on it.")
     parser.add_argument("--data-path", default=None)
     parser.add_argument("--model-path", default=None)

@@ -141,6 +141,10 @@ def run_training(
 
 
 def main():
+    from ml_project.logging_config import enable_file_logging
+
+    enable_file_logging()
+
     parser = argparse.ArgumentParser(description="Train the churn model with MLflow tracking.")
     parser.add_argument("--data-path", default=None, help="Path to the raw CSV.")
     parser.add_argument("--model-path", default=None, help="Where to save the fitted pipeline.")

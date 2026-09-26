@@ -18,9 +18,13 @@ should pass a short, consistent event name as the message (e.g.
 import json
 import logging
 import sys
+import threading
 from datetime import datetime, timezone
+from pathlib import Path
 
 _CONFIGURED_LOGGERS: set[str] = set()
+
+DEFAULT_LOG_FILE_PATH = Path(__file__).resolve().parents[2] / "logs" / "app.jsonl"
 
 # Attributes every logging.LogRecord has by default — used to detect which
 # attributes on a record were added via `extra={...}` by the caller.
@@ -47,6 +51,56 @@ class JsonFormatter(logging.Formatter):
             payload["exception"] = self.formatException(record.exc_info)
 
         return json.dumps(payload, default=str)
+
+
+_file_logging_state = {"enabled": False, "path": DEFAULT_LOG_FILE_PATH}
+_file_write_lock = threading.Lock()
+
+
+def enable_file_logging(path: Path | str | None = None) -> None:
+    """Enable persisting structured logs to a JSONL file, in addition to
+    stdout. Call this once from a CLI entrypoint's main() — not from
+    library code — so importing/testing a module doesn't incur file I/O.
+
+    A global switch (rather than per-logger config) because it needs to
+    take effect for every module's logger, including ones already created
+    via `logger = get_logger(__name__)` at import time — see
+    _CurrentStdoutHandler's docstring for the same import-order issue.
+    """
+    if path is not None:
+        _file_logging_state["path"] = Path(path)
+    _file_logging_state["path"].parent.mkdir(parents=True, exist_ok=True)
+    _file_logging_state["enabled"] = True
+
+
+def disable_file_logging() -> None:
+    """Disable file logging. Mainly for test teardown, since the enabled
+    flag is process-global."""
+    _file_logging_state["enabled"] = False
+
+
+def get_log_file_path() -> Path:
+    return _file_logging_state["path"]
+
+
+class _OptionalFileHandler(logging.Handler):
+    """No-ops unless enable_file_logging() has been called.
+
+    Every logger carries this handler; it costs nothing when file logging
+    is disabled (the default, including during tests), and starts writing
+    JSONL lines the moment a CLI entrypoint enables it.
+    """
+
+    def emit(self, record: logging.LogRecord) -> None:
+        if not _file_logging_state["enabled"]:
+            return
+        try:
+            msg = self.format(record)
+            with _file_write_lock:
+                with open(_file_logging_state["path"], "a", encoding="utf-8") as f:
+                    f.write(msg + "\n")
+        except Exception:
+            self.handleError(record)
 
 
 class _CurrentStdoutHandler(logging.StreamHandler):
@@ -81,9 +135,14 @@ def get_logger(name: str) -> logging.Logger:
     logger = logging.getLogger(name)
 
     if name not in _CONFIGURED_LOGGERS:
-        handler = _CurrentStdoutHandler()
-        handler.setFormatter(JsonFormatter())
-        logger.addHandler(handler)
+        stdout_handler = _CurrentStdoutHandler()
+        stdout_handler.setFormatter(JsonFormatter())
+        logger.addHandler(stdout_handler)
+
+        file_handler = _OptionalFileHandler()
+        file_handler.setFormatter(JsonFormatter())
+        logger.addHandler(file_handler)
+
         logger.setLevel(logging.INFO)
         logger.propagate = False
         _CONFIGURED_LOGGERS.add(name)

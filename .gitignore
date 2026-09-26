@@ -9,3 +9,5 @@ data/processed/*
 *.egg-info/
 mlflow.db
 mlruns/
+logs/*
+!logs/.gitkeep

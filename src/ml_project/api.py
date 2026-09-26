@@ -11,8 +11,11 @@ Endpoints:
 from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel
 
+from ml_project.logging_config import enable_file_logging
 from ml_project.metrics import metrics
 from ml_project.predict import PredictionError, predict
+
+enable_file_logging()
 
 app = FastAPI(title="Telco Churn Inference API")
 
