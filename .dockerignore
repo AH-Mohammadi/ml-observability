@@ -1,0 +1,17 @@
+.venv/
+__pycache__/
+*.pyc
+.pytest_cache/
+*.egg-info/
+.git/
+.gitignore
+
+# Generated artifacts — mounted as volumes instead, not baked into the image
+data/raw/*.csv
+data/processed/*
+models/*.joblib
+logs/*.jsonl
+mlflow_data/
+mlruns/
+
+tests/

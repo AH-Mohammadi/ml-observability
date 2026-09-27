@@ -1,0 +1,25 @@
+services:
+  # Runs once to produce models/baseline.joblib, then exits. Not part of
+  # `docker-compose up` by default (see the "train" profile) — training is
+  # something you run on demand, not something that should restart with
+  # the rest of the stack.
+  train:
+    build: .
+    command: python -m ml_project.train
+    volumes:
+      - ./models:/app/models
+      - ./data:/app/data
+      - ./logs:/app/logs
+      - ./mlflow_data:/app/mlflow_data
+    profiles: ["train"]
+
+  # The inference service. `docker-compose up` starts this by default.
+  api:
+    build: .
+    ports:
+      - "8000:8000"
+    volumes:
+      - ./models:/app/models
+      - ./data:/app/data
+      - ./logs:/app/logs
+      - ./mlflow_data:/app/mlflow_data

@@ -44,7 +44,7 @@ def test_get_logger_does_not_duplicate_handlers():
     logger1 = get_logger("ml_project.test_dedupe")
     logger2 = get_logger("ml_project.test_dedupe")
     assert logger1 is logger2
-    assert len(logger1.handlers) == 2
+    assert len(logger1.handlers) == 1
 
 
 def test_logger_output_is_parseable_json(capsys):

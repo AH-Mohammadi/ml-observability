@@ -17,7 +17,7 @@ from pathlib import Path
 
 import mlflow
 
-DEFAULT_DB_PATH = Path(__file__).resolve().parents[2] / "mlflow.db"
+DEFAULT_DB_PATH = Path(__file__).resolve().parents[2] / "mlflow_data" / "mlflow.db"
 
 
 def configure_default_tracking() -> None:
@@ -26,4 +26,5 @@ def configure_default_tracking() -> None:
         return
     if mlflow.get_tracking_uri().startswith("sqlite:"):
         return
+    DEFAULT_DB_PATH.parent.mkdir(parents=True, exist_ok=True)
     mlflow.set_tracking_uri(f"sqlite:///{DEFAULT_DB_PATH}")
