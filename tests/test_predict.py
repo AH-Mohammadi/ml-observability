@@ -60,13 +60,18 @@ def test_valid_prediction_returns_expected_shape(fitted_model_path):
     result = predict(VALID_FEATURES, model_path=fitted_model_path)
     assert result["prediction"] in ("Yes", "No")
     assert 0.0 <= result["probability"] <= 1.0
-    assert result["model_version"] == "v1"
+    assert result["model_version"] == "unknown"  # no metadata sidecar for this directly-saved fixture model
 
 
 def test_missing_feature_raises_prediction_error(fitted_model_path):
     incomplete = {k: v for k, v in VALID_FEATURES.items() if k != "Contract"}
     with pytest.raises(PredictionError, match="missing required feature"):
         predict(incomplete, model_path=fitted_model_path)
+
+
+def test_completely_empty_input_raises_prediction_error(fitted_model_path):
+    with pytest.raises(PredictionError, match="missing required feature"):
+        predict({}, model_path=fitted_model_path)
 
 
 def test_unknown_categorical_value_does_not_raise(fitted_model_path):
@@ -125,3 +130,56 @@ def test_load_model_caches_across_calls(fitted_model_path):
     m1 = load_model(fitted_model_path)
     m2 = load_model(fitted_model_path)
     assert m1 is m2
+
+
+def test_prediction_uses_real_model_version_when_metadata_present(fitted_model_path):
+    from ml_project.reproducibility import write_model_metadata
+
+    write_model_metadata(
+        fitted_model_path,
+        model_version="run-xyz789",
+        model_type="logistic_regression",
+        mlflow_run_id="run-xyz789",
+        dataset_path="/data/telco.csv",
+        n_train_rows=500,
+        n_val_rows=100,
+        random_seed=42,
+    )
+    # Bust the module-level model/metadata cache so this test's freshly
+    # written sidecar is actually picked up rather than an earlier
+    # test's cached (metadata-less) load of the same path.
+    import ml_project.predict as predict_module
+
+    predict_module._model_cache.clear()
+    predict_module._metadata_cache.clear()
+
+    result = predict(VALID_FEATURES, model_path=fitted_model_path)
+    assert result["model_version"] == "run-xyz789"
+
+
+def test_prediction_log_includes_full_traceability_chain(fitted_model_path, capsys):
+    from ml_project.reproducibility import write_model_metadata
+    import ml_project.predict as predict_module
+
+    write_model_metadata(
+        fitted_model_path,
+        model_version="run-trace1",
+        model_type="logistic_regression",
+        mlflow_run_id="run-trace1",
+        dataset_path="/data/telco.csv",
+        n_train_rows=500,
+        n_val_rows=100,
+        random_seed=42,
+    )
+    predict_module._model_cache.clear()
+    predict_module._metadata_cache.clear()
+
+    predict(VALID_FEATURES, model_path=fitted_model_path)
+    captured = capsys.readouterr()
+    events = [json.loads(line) for line in captured.out.strip().split("\n") if line]
+    completed = [e for e in events if e.get("event") == "prediction_completed"][0]
+
+    assert completed["model_version"] == "run-trace1"
+    assert completed["mlflow_run_id"] == "run-trace1"
+    assert completed["dataset_path"] == "/data/telco.csv"
+    assert "git_commit" in completed

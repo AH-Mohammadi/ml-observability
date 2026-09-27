@@ -32,6 +32,7 @@ from ml_project.preprocessing import (
     NUMERIC_FEATURES,
     build_preprocessor,
 )
+from ml_project.reproducibility import write_model_metadata
 from ml_project.split import RANDOM_SEED, split_data
 from ml_project.tracking import configure_default_tracking
 
@@ -117,12 +118,28 @@ def run_training(
         save_path.parent.mkdir(parents=True, exist_ok=True)
         joblib.dump(pipeline, save_path)
 
+        # model_version is the mlflow run_id — the same identifier that
+        # let you look up this exact run's params/metrics/artifact in
+        # MLflow. This is what closes the traceability loop: a prediction
+        # carries this version, which points straight back to this run.
+        meta_path = write_model_metadata(
+            save_path,
+            model_version=run_id,
+            model_type=model_type,
+            mlflow_run_id=run_id,
+            dataset_path=str(data_path) if data_path is not None else "default",
+            n_train_rows=len(splits.train),
+            n_val_rows=len(splits.val),
+            random_seed=RANDOM_SEED,
+        )
+
         result = {
             "model_type": model_type,
             "validation_metrics": metrics,
             "training_duration_seconds": duration_seconds,
             "model_saved_to": str(save_path),
-            "mlflow_run_id": mlflow.active_run().info.run_id,
+            "metadata_saved_to": str(meta_path),
+            "mlflow_run_id": run_id,
         }
 
         logger.info(

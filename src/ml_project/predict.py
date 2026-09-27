@@ -16,18 +16,15 @@ from ml_project.data_quality import check_request
 from ml_project.logging_config import get_logger
 from ml_project.metrics import metrics
 from ml_project.preprocessing import CATEGORICAL_FEATURES, NUMERIC_FEATURES
+from ml_project.reproducibility import read_model_metadata
 
 logger = get_logger(__name__)
 
 DEFAULT_MODEL_PATH = Path(__file__).resolve().parents[2] / "models" / "baseline.joblib"
 REQUIRED_FEATURES = NUMERIC_FEATURES + CATEGORICAL_FEATURES
 
-# Hardcoded for now — real model versioning (tying a prediction back to a
-# specific training run / dataset / code commit) is a later iteration
-# (Reproducibility). This is a placeholder, not a real version scheme.
-MODEL_VERSION = "v1"
-
 _model_cache: dict[str, object] = {}
+_metadata_cache: dict[str, dict | None] = {}
 
 
 class PredictionError(Exception):
@@ -45,8 +42,18 @@ def load_model(model_path: Path | str | None = None):
                 f"No trained model found at {path}. Run `python -m ml_project.train` first."
             )
         _model_cache[key] = joblib.load(path)
+        _metadata_cache[key] = read_model_metadata(path)
 
     return _model_cache[key]
+
+
+def get_model_metadata(model_path: Path | str | None = None) -> dict | None:
+    """Return the reproducibility metadata for a (cached) model, if any."""
+    path = Path(model_path) if model_path is not None else DEFAULT_MODEL_PATH
+    key = str(path)
+    if key not in _metadata_cache:
+        load_model(model_path)  # populates the cache
+    return _metadata_cache.get(key)
 
 
 def predict(features: dict, model_path: Path | str | None = None) -> dict:
@@ -114,18 +121,26 @@ def predict(features: dict, model_path: Path | str | None = None) -> dict:
         metrics.record_request(success=False, latency_ms=latency_ms)
         raise PredictionError(f"Prediction failed: {exc}") from exc
 
+    # metadata is None for a model saved before this iteration existed —
+    # degrade to "unknown" rather than crashing on an older artifact.
+    model_metadata = get_model_metadata(model_path)
+    model_version = model_metadata["model_version"] if model_metadata else "unknown"
+
     latency_ms = round((time.perf_counter() - start) * 1000, 2)
     result = {
         "prediction": prediction,
         "probability": round(probability, 4),
-        "model_version": MODEL_VERSION,
+        "model_version": model_version,
     }
 
     logger.info(
         "prediction_completed",
         extra={
             "request_id": request_id,
-            "model_version": MODEL_VERSION,
+            "model_version": model_version,
+            "mlflow_run_id": model_metadata.get("mlflow_run_id") if model_metadata else None,
+            "dataset_path": model_metadata.get("dataset_path") if model_metadata else None,
+            "git_commit": model_metadata.get("git_commit") if model_metadata else None,
             "prediction": prediction,
             "probability": result["probability"],
             "latency_ms": latency_ms,
